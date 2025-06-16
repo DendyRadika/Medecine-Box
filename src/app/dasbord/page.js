@@ -23,64 +23,57 @@ export default function Dasbord() {
         }
     };
 
-    // State untuk menyimpan jumlah pil
-    const MAX_PIL = 14;
-    const [pil, setPil] = useState(MAX_PIL);
+   // State untuk menyimpan jumlah pil
+const MAX_PIL = 14;
+const [pil, setPil] = useState(MAX_PIL);
 
-    useEffect(() => {
-        const db = getDatabase(app);
+useEffect(() => {
+    const db = getDatabase(app);
 
-        // Ambil schedules
-        const schedulesRef = ref(db, "devices/med_dispenser_01/schedules");
-        onValue(schedulesRef, (snapshot) => {
-            const data = snapshot.val();
-            setSchedules(data || {});
-        });
+    const schedulesRef = ref(db, "devices/med_dispenser_01/schedules");
+    onValue(schedulesRef, (snapshot) => {
+        const data = snapshot.val();
+        setSchedules(data || {});
+    });
 
-        // Ambil history alarms
-        const historyRef = ref(db, "devices/med_dispenser_01/history/alarms");
-        onValue(historyRef, (snapshot) => {
-            const data = snapshot.val();
-            setHistory(data || {});
-        });
+    const alarmsRef = ref(db, "devices/med_dispenser_01/history/alarms");
+    const manualRef = ref(db, "devices/med_dispenser_01/history/manual");
 
-        const alarmsRef = ref(db, "devices/med_dispenser_01/history/alarms");
-        const manualRef = ref(db, "devices/med_dispenser_01/history/manual");
+    onValue(alarmsRef, (snapshot) => {
+        const alarmsData = snapshot.val();
         let totalPengurangan = 0;
-        let totalPenambahan = 0;
 
-        // Ambil data alarms
-        onValue(alarmsRef, (snapshot) => {
-            const alarmsData = snapshot.val();
-            if (alarmsData) {
-                Object.values(alarmsData).forEach((dayObj) => {
-                    const totalJam = Object.keys(dayObj).length;
-
-                    if (totalJam === 2) {
+        if (alarmsData) {
+            Object.values(alarmsData).forEach((dayObj) => {
+                Object.values(dayObj).forEach((event) => {
+                    if (event?.action === "alarm_stopped") {
                         totalPengurangan += 1;
-                    } else if (totalJam === 4) {
-                        totalPengurangan += 2;
                     }
+                });
+            });
+        }
+
+        // Ambil manual dispense setelah alarm selesai dihitung
+        onValue(manualRef, (manualSnapshot) => {
+            const manualData = manualSnapshot.val();
+            let totalPenambahan = 0;
+
+            if (manualData) {
+                Object.values(manualData).forEach((dayObj) => {
+                    Object.values(dayObj).forEach((event) => {
+                        if (event?.action === "manual_dispense") {
+                            totalPenambahan += 1;
+                        }
+                    });
                 });
             }
 
-            
+            let hasil = MAX_PIL - totalPengurangan + totalPenambahan;
+            if (hasil > MAX_PIL) hasil = MAX_PIL;
+            if (hasil < 0) hasil = 0;
+            setPil(hasil);
         });
-        // Setelah alarms, ambil data manual
-            onValue(manualRef, (manualSnapshot) => {
-                const manualData = manualSnapshot.val();
-                if (manualData) {
-                    Object.values(manualData).forEach((dayObj) => {
-                        const totalJam = Object.keys(dayObj).length;
-                        totalPenambahan += totalJam; // 1 jam = 1 pil
-                    });
-                }
-
-                // Hitung akhir
-                let hasil = MAX_PIL - totalPengurangan + totalPenambahan;
-                if (hasil > MAX_PIL) hasil = MAX_PIL;
-                setPil(hasil);
-            });
+    });
 
         onValue(alarmsRef, (snapshot) => {
             const data = snapshot.val();
